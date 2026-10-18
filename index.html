@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天斗站PIDS模擬器</title>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --panel-bg: #111;
+            --text-orange: #ff9900;
+            --text-green: #33ff33;
+            --text-red: #ff3333;
+            --text-white: #ffffff;
+            --border-color: #333;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-white);
+            font-family: "Microsoft JhengHei", "微軟正黑體", sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        /* 頂部標題與時鐘 */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #0a192f;
+            border: 2px solid #1e3a8a;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .station-title {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #60a5fa;
+        }
+
+        .clock-panel {
+            font-size: 24px;
+            font-family: 'Courier New', Courier, monospace;
+            color: var(--text-orange);
+            font-weight: bold;
+        }
+
+        /* PIDS 本體面板 */
+        .pids-board {
+            background-color: var(--panel-bg);
+            border: 4px solid #222;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        /* 表頭 */
+        .pids-header {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1.5fr 1fr 1fr 1.5fr 2fr;
+            background-color: #1a1a1a;
+            border-bottom: 2px solid var(--border-color);
+            padding: 12px 10px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+            color: #aaa;
+        }
+
+        /* 列車資料列 */
+        .pids-row {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1.5fr 1fr 1fr 1.5fr 2fr;
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 10px;
+            align-items: center;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .pids-row:last-child {
+            border-bottom: none;
+        }
+
+        /* 點矩陣字體顏色 */
+        .train-type { text-align: left; padding-left: 10px; }
+        .G { color: var(--text-red); }
+        .K { color: var(--text-orange); }
+        .P { color: var(--text-green); }
+
+        .train-no { color: var(--text-white); font-family: Arial, sans-serif; }
+        .destination { color: var(--text-green); }
+        .dept-time { color: var(--text-orange); font-family: 'Courier New', monospace; }
+        .platform { color: var(--text-orange); }
+        
+        .delay-status { font-size: 20px; }
+        .delay-ontime { color: var(--text-green); }
+        .delay-late { color: var(--text-red); animation: blink 1s infinite steps(1, start); }
+
+        .remarks {
+            color: var(--text-orange);
+            font-size: 18px;
+            text-align: left;
+            padding-left: 15px;
+            white-space: nowrap;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 跑馬燈動畫效果 */
+        .marquee-text {
+            display: inline-block;
+            white-space: nowrap;
+            animation: marquee 12s linear infinite;
+        }
+
+        @keyframes marquee {
+            0% { transform: translate3d(100%, 0, 0); }
+            100% { transform: translate3d(-100%, 0, 0); }
+        }
+
+        /* 閃爍效果 (晚五分鐘等文字) */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* 簡易展示控制台 */
+        .control-panel {
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 6px;
+        }
+
+        .control-panel h3 {
+            margin-top: 0;
+            color: #3b82f6;
+            border-bottom: 1px solid #444;
+            padding-bottom: 8px;
+        }
+
+        .btn {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: background 0.2s;
+        }
+
+        .btn:hover { background-color: #1d4ed8; }
+        .btn-danger { background-color: #dc2626; }
+        .btn-danger:hover { background-color: #b91c1c; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 頂部資訊 -->
+    <div class="header">
+        <div class="station-title">天斗車站 列車資訊 (模擬)</div>
+        <div class="clock-panel" id="live-clock">00:00:00</div>
+    </div>
+
+    <!-- PIDS 顯示看板 -->
+    <div class="pids-board">
+        <div class="pids-header">
+            <div>車種 (Type)</div>
+            <div>車次 (No.)</div>
+            <div>經由 (Via) ➔ 終點 (To)</div>
+            <div>時間 (Time)</div>
+            <div>月台 (Plat.)</div>
+            <div>狀態 (Status)</div>
+            <div>備註 (Remarks)</div>
+        </div>
+        <div id="pids-rows-container">
+            <!-- 列車資料由 JavaScript 動態渲染 -->
+        </div>
+    </div>
+
+    <!-- 系統控制台 -->
+    <div class="control-panel">
+        <h3>功能操作與互動展示</h3>
+        <button class="btn" onclick="triggerRandomDelay()">隨機模擬列車延誤</button>
+        <button class="btn" onclick="resetStatus()">全線恢復準點</button>
+        <button class="btn btn-danger" onclick="toggleEmergencyMarquee()">切換全站緊急狀況跑馬燈</button>
+    </div>
+</div>
+
+<script>
+    // 預設台鐵動態列車陣列
+    let trainData = [
+        { id: 1, type: '高速', no: 'G0101', via: '天斗', to: '靠北', time: '06:20', platform: '5', delay: 682, remarks: '天斗->靠北' },
+        { id: 2, type: '區間', no: 'P0204', via: '天斗', to: '朋卡', time: '07:01', platform: '3', delay: 567, remarks: '各站皆停' },
+        { id: 3, type: '區間', no: 'P0013', via: '林北', to: '野獸先輩', time: '07:15', platform: '2', delay: 684, remarks: '各站皆停' },
+        { id: 4, type: '區間', no: 'P0104', via: '林北', to: '東海城', time: '07:35', platform: '4', delay: 684, remarks: '各站皆停' },
+        { id: 5, type: '快車', no: 'K0101', via: '天斗', to: '靠北', time: '08:30', platform: '1', delay: 872, remarks: '天斗->嘉平->靠北' },
+        { id: 6, type: '快車', no: 'P0223', via: '溪程', to: '天斗', time: '08:46', platform: '3', delay: 565, remarks: '回送' },
+        { id: 7, type: '高速', no: 'G0008', via: '林北', to: '密爾頓', time: '09:06', platform: '6', delay: 692, remarks: '天斗->林北->密爾頓' },
+        { id: 8, type: '調度', no: 'D0114', via: '林北', to: '天斗車輛段1', time: '09:12', platform: '4', delay: 723, remarks: '回送' },
+        { id: 9, type: '區間', no: 'P0021', via: '天斗', to: '野獸先輩', time: '09:17', platform: '2', delay: 492, remarks: '各站皆停' },
+        { id: 10, type: '快車', no: 'K0013', via: '朋卡', to: '林北', time: '10:02', platform: '4', delay: 330, remarks: '天斗->朋卡->駝津->林北島->林北' },
+        { id: 11, type: '區間', no: 'P0212', via: '朋卡', to: '駝津', time: '12:07', platform: '3', delay: 806, remarks: '各站皆停' },
+        { id: 12, type: '區間', no: 'P0035', via: '天斗', to: '靠北', time: '13:01', platform: '1', delay: 765, remarks: '各站皆停' },
+        { id: 13, type: '區間', no: 'P0014', via: '林北', to: '春日', time: '13:39', platform: '3', delay: 554, remarks: '各站皆停' },
+        { id: 14, type: '快車', no: 'K0102', via: '天斗', to: '朋卡', time: '14:12', platform: '4', delay: 842, remarks: '各站皆停' },
+        { id: 15, type: '區間', no: 'P0105', via: '林北', to: '靠北', time: '14:25', platform: '2', delay: 402, remarks: '各站皆停' },
+        { id: 16, type: '區間', no: 'P0224', via: '溪程', to: '溪程', time: '15:15', platform: '3', delay: 365, remarks: '各站皆停' },
+        { id: 17, type: '貨運', no: 'H0117', via: '天斗', to: '天斗貨運', time: '15:36', platform: '1', delay: 714, remarks: '貨運列車' },
+        { id: 18, type: '區間', no: 'P0022', via: '林北', to: '阿倫', time: '16:20', platform: '4', delay: 332, remarks: '各站皆停' },
+        { id: 19, type: '區間', no: 'P0215', via: '天斗', to: '野獸先輩', time: '16:51', platform: '1', delay: 332, remarks: '各站皆停' },
+        { id: 20, type: '快車', no: 'K0014', via: '天斗', to: '野獸先輩', time: '17:23', platform: '2', delay: 397, remarks: '天斗->嘉平->靠北->野獸先輩' },
+        { id: 21, type: '高速', no: 'G0102', via: '天斗', to: '朋卡', time: '18:08', platform: '6', delay: 847, remarks: '天斗->朋卡' },
+        { id: 22, type: '高速', no: 'G0007', via: '天斗', to: '靠北', time: '18:39', platform: '5', delay: 338, remarks: '天斗->靠北' },
+        { id: 23, type: '貨運', no: 'H0012', via: '林北', to: '密爾頓', time: '18:56', platform: '4', delay: 451, remarks: '貨運列車' },
+        { id: 24, type: '區間', no: 'P0032', via: '林北', to: '阿倫', time: '19:01', platform: '3', delay: 859, remarks: '各站皆停' },
+        { id: 25, type: '區間', no: 'P0031', via: '天斗', to: '靠北', time: '20:45', platform: '1', delay: 697, remarks: '各站皆停' },
+    ];
+
+    const typeClasses = {
+        '高速': 'G',
+        '快車': 'K',
+        '區間': 'P',
+        '臨時': 'L',
+        '旅遊': 'Y',
+        '專車': 'Z',
+        '貨運': 'H',
+        '調度': 'D',
+    };
+
+    let isEmergency = false;
+
+    // 渲染 UI 畫面
+    function renderPIDS() {
+        const container = document.getElementById('pids-rows-container');
+        container.innerHTML = '';
+
+        trainData.forEach(train => {
+            const row = document.createElement('div');
+            row.className = 'pids-row';
+
+            // 車種對應顏色樣式
+            const typeClass = typeClasses[train.type] || '';
+            
+            // 延誤狀態判斷
+            let delayHtml = `<span class="delay-ontime">準點</span>`;
+            if (train.delay > 0) {
+                delayHtml = `<span class="delay-late">晚 ${train.delay} 分</span>`;
+            }
+
+            // 處理備註內容 (若是切換至緊急通報模式，將覆蓋所有車次的備註)
+            let remarksText = train.remarks;
+            if (isEmergency) {
+                remarksText = "⚠️ 受豪雨影響導致部分路段異常，全線列車延誤或取消，請旅客多加留意。";
+            }
+            
+            // 備註字數較長時，自動加入跑馬燈 CSS Class 達成無縫滾動效果
+            const remarksHtml = remarksText.length > 10 
+                ? `<div class="marquee-text">${remarksText}</div>` 
+                : remarksText;
+
+            row.innerHTML = `
+                <div class="train-type ${typeClass}">${train.type}</div>
+                <div class="train-no">${train.no}</div>
+                <div class="destination"><span style="font-size:14px; color:#666;">${train.via}</span> ➔ ${train.to}</div>
+                <div class="dept-time">${train.time}</div>
+                <div class="platform">${train.platform}</div>
+                <div class="delay-status">${delayHtml}</div>
+                <div class="remarks">${remarksHtml}</div>
+            `;
+            container.appendChild(row);
+        });
+    }
+
+    // 更新即時時鐘
+    function updateClock() {
+        const now = new Date();
+        const hrs = String(now.getHours()).padStart(2, '0');
+        const mins = String(now.getMinutes()).padStart(2, '0');
+        const secs = String(now.getSeconds()).padStart(2, '0');
+        document.getElementById('live-clock').innerText = `${hrs}:${mins}:${secs}`;
+    }
+
+    // 控制台功能 1：隨機觸發晚點
+    function triggerRandomDelay() {
+        trainData.forEach(train => {
+            if (Math.random() > 0.4) {
+                train.delay += Math.floor(Math.random() * 8) + 1;
+            }
+        });
+        renderPIDS();
+    }
+
+    // 控制台功能 2：全線復原
+    function resetStatus() {
+        trainData.forEach(train => train.delay = 0);
+        isEmergency = false;
+        renderPIDS();
+    }
+
+    // 控制台功能 3：切換跑馬燈廣播
+    function toggleEmergencyMarquee() {
+        isEmergency = !isEmergency;
+        renderPIDS();
+    }
+
+    // 初始化與時鐘循環
+    setInterval(updateClock, 1000);
+    updateClock();
+    renderPIDS();
+</script>
+
+</body>
+</html>
